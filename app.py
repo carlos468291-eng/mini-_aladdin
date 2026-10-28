@@ -11,19 +11,21 @@ st.set_page_config(
 )
 
 st.title("💰 Mini-Aladdin: Tu Gestor de Cartera, Riesgos y Rentabilidad")
-st.markdown("Personaliza tu capital inicial, edita tus posiciones con precios de compra, analiza tu ROI, compara tu rendimiento, exporta tus datos y chatea con el asistente.")
+st.markdown("Personaliza tu capital inicial, edita tus posiciones y observa cómo las ganancias y el ROI se autocalculan al instante.")
 
 # ==========================================
 # 1. GESTIÓN DE CAPITAL Y PORTAFOLIO EN SESSION_STATE
 # ==========================================
+columns_to_edit = pd.DataFrame({
+    "Asset": ["AAPL", "TSLA", "BTC", "GOOGL"],
+    "Type": ["Stock", "Stock", "Crypto", "Stock"],
+    "Shares": [50.0, 10.0, 1.5, 30.0],
+    "Buy_Price": [150.0, 210.0, 50000.0, 120.0],
+    "Price": [180.50, 240.00, 65000.00, 140.20]
+})
+
 if "portfolio" not in st.session_state:
-    st.session_state.portfolio = pd.DataFrame({
-        "Asset": ["AAPL", "BTC", "GOOGL", "BOND_US10Y"],
-        "Type": ["Stock", "Crypto", "Stock", "Fixed Income"],
-        "Shares": [50.0, 1.5, 30.0, 100.0],
-        "Buy_Price": [150.0, 50000.0, 120.0, 95.0],
-        "Price": [180.50, 65000.00, 140.20, 98.50]
-    })
+    st.session_state.portfolio = columns_to_edit
 
 # Panel lateral para configurar el capital base en efectivo
 st.sidebar.header("💵 Gestión de Efectivo")
@@ -36,30 +38,29 @@ initial_cash = st.sidebar.number_input(
 )
 
 # ==========================================
-# 2. TABLA INTERACTIVA Y CÁLCULOS DE RENTABILIDAD
+# 2. TABLA INTERACTIVA Y CÁLCULOS AUTOMÁTICOS
 # ==========================================
 st.subheader("📊 Tus Posiciones y Activos")
-st.markdown("Haz clic en cualquier celda para modificar cantidades, precios de compra o precios de mercado actualizados:")
+st.markdown("Modifica o añade tus activos abajo. Las ganancias y el ROI se calculan solos en tiempo real:")
 
 edited_df = st.data_editor(
-    st.session_state.portfolio, 
+    st.session_state.portfolio[["Asset", "Type", "Shares", "Buy_Price", "Price"]], 
     num_rows="dynamic", 
     use_container_width=True,
     key="portfolio_editor"
 )
 
+# MAGIA DE PANDAS: Autocalculo de métricas financieras de rendimiento
+edited_df["Invertido"] = edited_df["Shares"] * edited_df["Buy_Price"]
+edited_df["Valor_Actual"] = edited_df["Shares"] * edited_df["Price"]
+edited_df["Ganancia_$"] = edited_df["Valor_Actual"] - edited_df["Invertido"]
+edited_df["ROI_%"] = ((edited_df["Valor_Actual"] - edited_df["Invertido"]) / edited_df["Invertido"]) * 100
+
 st.session_state.portfolio = edited_df
 
-# Cálculos avanzados de rendimiento con Pandas
-df = st.session_state.portfolio
-df["Invertido"] = df["Shares"] * df["Buy_Price"]
-df["Valor_Actual"] = df["Shares"] * df["Price"]
-df["Ganancia_$"] = df["Valor_Actual"] - df["Invertido"]
-df["ROI_%"] = ((df["Valor_Actual"] - df["Invertido"]) / df["Invertido"]) * 100
-
-total_invertido = df["Invertido"].sum()
-total_actual = df["Valor_Actual"].sum()
-ganancia_neta = total_actual - total_invertido
+total_invertido = edited_df["Invertido"].sum()
+total_actual = edited_df["Valor_Actual"].sum()
+ganancia_neta = edited_df["Ganancia_$"].sum()
 roi_global = (ganancia_neta / total_invertido) * 100 if total_invertido > 0 else 0
 net_worth_total = total_actual + initial_cash
 
@@ -141,7 +142,7 @@ st.subheader("💬 Asistente de Inversión y Riesgos")
 
 if "messages" not in st.session_state:
     st.session_state.messages = [
-        {"role": "assistant", "content": "¡Hola! He cargado tu cartera completa con análisis de ROI, gráficos comparativos y exportación. Pregúntame sobre tu rentabilidad, patrimonio o simula escenarios de riesgo."}
+        {"role": "assistant", "content": "¡Hola! He cargado tu cartera con autocalculo de ganancias. Pregúntame sobre tu rentabilidad, patrimonio o simula escenarios de riesgo."}
     ]
 
 for message in st.session_state.messages:
